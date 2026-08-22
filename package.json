@@ -4,8 +4,8 @@
   "description": "A feature-rich Space Invaders game with multiple levels, power-ups, sound effects, and leaderboards",
   "main": "index.html",
   "scripts": {
-    "start": "npx http-server -p 8080",
-    "dev": "npx live-server --port=8080"
+    "start": "npx http-server -p 8081",
+    "dev": "npx live-server --port=8081"
   },
   "keywords": ["game", "space-invaders", "retro", "browser-game"],
   "license": "MIT"
