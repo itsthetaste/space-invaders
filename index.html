@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active">
+            <div class="content">
+                <h1 class="game-title">SPACE INVADERS</h1>
+                <div class="subtitle">DEFEND EARTH</div>
+                <div class="alien-preview">
+                    <div class="preview-alien">👾</div>
+                    <div class="preview-alien">👽</div>
+                    <div class="preview-alien">🛸</div>
+                </div>
+                <div class="start-info">
+                    <p>🎮 <strong>Arrow Keys</strong> or <strong>A/D</strong> - Move</p>
+                    <p>🔫 <strong>Spacebar</strong> - Fire / Confirm</p>
+                    <p>🔧 <strong>1-6</strong> - Select Weapon | <strong>W / Q</strong> - Cycle</p>
+                    <p>⏸️ <strong>Esc</strong> - Pause | <strong>Enter</strong> - Start/Next</p>
+                </div>
+                <button id="start-btn" class="btn-primary">START GAME</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div id="hud">
+                <div class="hud-left">
+                    <div class="score">SCORE: <span id="score-display">0</span></div>
+                    <div class="high-score">HIGH: <span id="high-score-display">0</span></div>
+                </div>
+                <div class="hud-center">
+                    <div class="level">LEVEL <span id="level-display">1</span></div>
+                    <div id="combo-display" class="combo-display"></div>
+                </div>
+                <div class="hud-right">
+                    <div class="lives">LIVES: <span id="lives-display">♥♥♥</span></div>
+                    <div class="weapon-display" id="weapon-display">
+                        <span id="weapon-icon">🔫</span>
+                        <span id="weapon-name">PISTOL</span>
+                    </div>
+                </div>
+            </div>
+            <canvas id="game-canvas"></canvas>
+            <div id="boss-hud">
+                <div class="boss-name">⚠ BOSS ⚠</div>
+                <div class="boss-health-bar-container">
+                    <div class="boss-health-bar-fill" id="boss-health-fill"></div>
+                </div>
+            </div>
+            <div id="powerup-indicator"></div>
+        </div>
+
+        <!-- Pause Screen -->
+        <div id="pause-screen" class="screen overlay">
+            <div class="content">
+                <h2>PAUSED</h2>
+                <p class="pause-hint">🔧 Press <strong>1-6</strong> to select weapon | <strong>W / Q</strong> to cycle</p>
+                <button id="resume-btn" class="btn-primary">RESUME</button>
+                <button id="quit-btn" class="btn-secondary">QUIT TO MENU</button>
+            </div>
+        </div>
+
+        <!-- Level Complete Screen -->
+        <div id="level-screen" class="screen overlay">
+            <div class="content">
+                <h2>LEVEL COMPLETE!</h2>
+                <div class="level-bonus">BONUS: <span id="level-bonus">0</span> pts</div>
+                <div class="level-stats">
+                    <p>Time Bonus: <span id="time-bonus">0</span></p>
+                    <p>Lives Bonus: <span id="lives-bonus">0</span></p>
+                    <p>Power Up Bonus: <span id="powerup-bonus">0</span></p>
+                </div>
+                <div class="level-stats">
+                    <p style="color: #ffaa00; font-weight: bold; font-size: 1.2rem;">TOTAL BONUS: <span id="total-bonus-display">0</span></p>
+                </div>
+                <button id="next-level-btn" class="btn-primary">NEXT LEVEL</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen">
+            <div class="content">
+                <h2 class="game-over-title">GAME OVER</h2>
+                <div class="final-score">
+                    <div class="score-label">FINAL SCORE</div>
+                    <div class="score-value" id="final-score">0</div>
+                </div>
+                <div class="gameover-stats">
+                    <p>🏆 Level Reached: <span id="final-level">1</span></p>
+                    <p>👾 Aliens Destroyed: <span id="final-kills">0</span></p>
+                    <p>🔥 Peak Combo: <span id="final-combo">0</span></p>
+                    <p>🎯 Accuracy: <span id="final-accuracy">0%</span></p>
+                </div>
+                <div id="new-high-score" class="new-high-score hidden">
+                    🎉 NEW HIGH SCORE! 🎉
+                </div>
+                <div id="leaderboard-preview" class="leaderboard-preview"></div>
+                <div class="gameover-actions">
+                    <button id="retry-btn" class="btn-primary">PLAY AGAIN</button>
+                    <button id="leaderboard-btn" class="btn-secondary">LEADERBOARD</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Screen -->
+        <div id="leaderboard-screen" class="screen">
+            <div class="content">
+                <h2>🏆 LEADERBOARD 🏆</h2>
+                <div id="leaderboard-list" class="leaderboard-list"></div>
+                <div class="leaderboard-actions">
+                    <button id="new-game-btn" class="btn-primary">NEW GAME</button>
+                    <button id="back-btn" class="btn-secondary">BACK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Score Modal -->
+        <div id="score-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>NEW HIGH SCORE!</h3>
+                <p>Enter your name:</p>
+                <input type="text" id="player-name" maxlength="20" placeholder="Your name..." autocomplete="off">
+                <div class="modal-actions">
+                    <button id="submit-score-btn" class="btn-primary">SUBMIT</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Intro Cinematic -->
+        <div id="level-intro-overlay" class="cinematic-overlay hidden">
+            <div class="level-intro-content">
+                <div class="alien-parade-container" id="alien-parade"></div>
+                <h1 id="level-intro-text" class="zoom-text">LEVEL 1</h1>
+                <p class="level-subtitle">GET READY</p>
+            </div>
+        </div>
+
+        <!-- Death Cinematic Overlay -->
+        <div id="death-overlay" class="cinematic-overlay hidden">
+            <div class="death-effects">
+                <div class="red-flash" id="red-flash"></div>
+                <canvas id="death-cracks-canvas" class="cracks-canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Game Over Cinematic Overlay -->
+        <div id="gameover-cinematic-overlay" class="cinematic-overlay hidden">
+            <div class="gameover-cinematic-content">
+                <canvas id="gameover-cracks-canvas" class="cracks-canvas"></canvas>
+                <div class="fade-black" id="fade-black"></div>
+                <h1 class="gameover-cinematic-text">GAME OVER</h1>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio context setup happens in game.js -->
+    <script src="js/audio.js?v=3"></script>
+    <script src="js/powerups.js?v=3"></script>
+    <script src="js/leaderboard.js?v=3"></script>
+    <script src="js/game.js?v=3"></script>
+</body>
+</html>
