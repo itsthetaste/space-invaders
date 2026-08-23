@@ -379,8 +379,11 @@ class SpaceInvaders {
                 this.createAliens();
                 this.createShields();
                 this.alienDirection = 1;
-                this.alienSpeed = 1 + (this.level - 1) * 0.3;
-                this.alienMoveInterval = Math.max(5, 40 - (this.level - 1) * 3);
+                // Toned-down scaling so the game stays playable at higher levels.
+                // Original: speed grew by 0.3/level and interval dropped by 3/level
+                // (interval floor 5), causing a brutal jump around level 10-11.
+                this.alienSpeed = 1 + (this.level - 1) * 0.15;
+                this.alienMoveInterval = Math.max(12, 35 - (this.level - 1) * 2);
                 this.alienMoveTimer = 0;
             }
         });
@@ -1090,7 +1093,7 @@ class SpaceInvaders {
             y: shooter.y + shooter.height,
             width: 4,
             height: 12,
-            speed: 3 + this.level * 0.3,
+            speed: 3 + this.level * 0.15,
             color: '#ff4444'
         });
     }
