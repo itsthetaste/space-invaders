@@ -87,6 +87,12 @@ class SpaceInvaders {
         this.deathCrackLines = [];
         this.gameOverCrackLines = [];
         
+        // Final score/level captured at game over — used by submitScore() so
+        // the leaderboard always gets the values from the game that just ended,
+        // not stale values if the game object state changes later.
+        this.finalScore = 0;
+        this.finalLevel = 1;
+        
         // Constants
         this.CANVAS_WIDTH = 800;
         this.CANVAS_HEIGHT = 600;
@@ -1999,6 +2005,10 @@ class SpaceInvaders {
         if (this.state === 'gameOver') return;
 
         this.state = 'gameOver';
+        // Lock in the final score and level so submitScore() always has the
+        // correct values even if the game object is reused later.
+        this.finalScore = this.score;
+        this.finalLevel = this.level;
         this.saveHighScore();
         document.getElementById('game-container').classList.remove('playing');
 
@@ -2035,7 +2045,7 @@ class SpaceInvaders {
 
     submitScore() {
         const name = document.getElementById('player-name').value.trim() || 'Anonymous';
-        leaderboard.addScore(name, this.score, this.level);
+        leaderboard.addScore(name, this.finalScore, this.finalLevel);
 
         document.getElementById('score-modal').classList.add('hidden');
         document.getElementById('player-name').value = '';

@@ -23,6 +23,12 @@ class AudioSystem {
         this.droneBaseFreq = 36.71; // Low D
         this.atmosphereBaseFreq = 146.83; // D3
         
+        // Timeout IDs for music scheduling — must be cancelled on stopMusic()
+        this._melodyTimeout = null;
+        this._bassTimeout = null;
+        this._arpTimeout = null;
+        this._drumTimeout = null;
+        
         // Chiptune note frequencies (A minor pentatonic + extensions across octaves)
         this._notes = {
             'A2': 110, 'C3': 130.81, 'D3': 146.83, 'E3': 164.81, 'G3': 196,
@@ -643,7 +649,7 @@ class AudioSystem {
             this._melodyPatternIndex = (this._melodyPatternIndex + 1) % this._melodyPatterns.length;
         }
         
-        setTimeout(() => {
+        this._melodyTimeout = setTimeout(() => {
             this._scheduleNextMelodyNote();
         }, beatDur * 1000);
     }
@@ -696,7 +702,7 @@ class AudioSystem {
             this._bassPatternIndex = (this._bassPatternIndex + 1) % this._bassPatterns.length;
         }
         
-        setTimeout(() => {
+        this._bassTimeout = setTimeout(() => {
             this._scheduleNextBassNote();
         }, beatDur * 1000);
     }
@@ -745,7 +751,7 @@ class AudioSystem {
             this._arpPatternIndex = (this._arpPatternIndex + 1) % this._arpPatterns.length;
         }
         
-        setTimeout(() => {
+        this._arpTimeout = setTimeout(() => {
             this._scheduleNextArpNote();
         }, arpDur * 1000);
     }
@@ -786,7 +792,7 @@ class AudioSystem {
             this._drumStep = 0;
         }
         
-        setTimeout(() => {
+        this._drumTimeout = setTimeout(() => {
             this._scheduleNextDrum();
         }, stepDur * 1000);
     }
@@ -922,6 +928,15 @@ class AudioSystem {
         
         this.musicPlaying = false;
         this.musicPaused = false;
+        
+        // Cancel all pending timeout callbacks so they don't reschedule themselves
+        [this._melodyTimeout, this._bassTimeout, this._arpTimeout, this._drumTimeout].forEach(id => {
+            if (id !== null) clearTimeout(id);
+        });
+        this._melodyTimeout = null;
+        this._bassTimeout = null;
+        this._arpTimeout = null;
+        this._drumTimeout = null;
         
         // Stop all music nodes
         const ctx = this.audioContext;
