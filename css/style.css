@@ -318,6 +318,28 @@ body {
     text-shadow: 0 0 10px currentColor;
 }
 
+/* ===== Timer Display ===== */
+.timer {
+    font-size: 1rem;
+    letter-spacing: 2px;
+    color: var(--accent);
+    font-weight: bold;
+    text-shadow: 0 0 8px var(--accent-glow);
+    min-height: 1.4rem;
+    transition: color 0.3s, text-shadow 0.3s;
+}
+
+.timer.warning {
+    color: var(--danger);
+    text-shadow: 0 0 10px rgba(255, 51, 68, 0.6);
+    animation: timerPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
 /* ===== Game Canvas ===== */
 #game-canvas {
     display: block;

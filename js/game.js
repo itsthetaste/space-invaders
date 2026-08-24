@@ -42,6 +42,11 @@ class SpaceInvaders {
         this.lastTime = 0;
         this.levelStartTime = 0;
         
+        // Level timer (5 minutes = 300 seconds per level)
+        this.TIMER_SECONDS = 300;
+        this.timerRemaining = 300;
+        this.timerLastTick = 0;
+        
         // Game objects
         this.player = null;
         this.aliens = [];
@@ -355,6 +360,10 @@ class SpaceInvaders {
             this.state = 'playing';
             document.getElementById('game-container').classList.add('playing');
             this.levelStartTime = Date.now();
+            // Reset level timer
+            this.timerRemaining = this.TIMER_SECONDS;
+            this.timerLastTick = Date.now();
+            this.updateTimerDisplay();
             this.bullets = [];
             this.enemyBullets = [];
             this.particles = [];
@@ -963,6 +972,7 @@ class SpaceInvaders {
         this.updateScreenEffects();
         this.updateCombo(deltaTime);
         this.updateWeaponNotifications();
+        this.updateTimerDisplay();
         
         // Update boss if active
         if (this.boss && this.boss.phase !== 'defeated') {
@@ -2081,6 +2091,32 @@ class SpaceInvaders {
             comboDisplay.style.fontSize = `${1.2 + Math.min(this.comboMultiplier * 0.15, 0.8)}rem`;
         } else {
             comboDisplay.classList.remove('active');
+        }
+    }
+
+    /**
+     * Update the level countdown timer display.
+     * Called every frame; only ticks down once per real second.
+     */
+    updateTimerDisplay() {
+        const now = Date.now();
+        const elapsed = Math.floor((now - this.levelStartTime) / 1000);
+        this.timerRemaining = Math.max(0, this.TIMER_SECONDS - elapsed);
+
+        const mins = Math.floor(this.timerRemaining / 60);
+        const secs = this.timerRemaining % 60;
+        const display = `${mins}:${secs.toString().padStart(2, '0')}`;
+        const timerEl = document.getElementById('timer-display');
+        if (timerEl) {
+            timerEl.textContent = display;
+        }
+
+        // Warning state when under 60 seconds
+        const timerContainer = timerEl?.closest('.timer');
+        if (this.timerRemaining <= 60 && timerContainer) {
+            timerContainer.classList.add('warning');
+        } else if (timerContainer) {
+            timerContainer.classList.remove('warning');
         }
     }
 
