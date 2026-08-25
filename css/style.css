@@ -171,6 +171,18 @@ body {
     transform: scale(1.05);
 }
 
+/* Focus styles for keyboard navigation */
+.btn-primary:focus, .btn-secondary:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--primary), 0 0 30px var(--primary-glow);
+    transform: scale(1.05);
+}
+
+.btn-secondary:focus {
+    box-shadow: 0 0 0 3px var(--secondary), 0 0 30px var(--secondary-glow);
+    transform: scale(1.05);
+}
+
 /* ===== HUD ===== */
 #game-screen.active {
     background: transparent;

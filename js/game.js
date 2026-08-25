@@ -98,6 +98,10 @@ class SpaceInvaders {
         this.finalScore = 0;
         this.finalLevel = 1;
         
+        // Keyboard menu navigation
+        this.menuButtons = [];    // Buttons in the current screen
+        this.menuFocusIndex = 0;  // Which button has focus
+
         // Constants
         this.CANVAS_WIDTH = 800;
         this.CANVAS_HEIGHT = 600;
@@ -227,11 +231,36 @@ class SpaceInvaders {
     handleKeyDown(e) {
         this.keys[e.code] = true;
 
-        // Menu navigation with Enter/Space (skip if modal is open)
+        // --- Modal: submit score with Enter ---
         const modalVisible = !document.getElementById('score-modal').classList.contains('hidden');
+        if (modalVisible) {
+            if (e.code === 'Enter') {
+                e.preventDefault();
+                this.submitScore();
+            }
+            return;
+        }
+
+        // --- Arrow keys: navigate menus ---
+        if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            if (this.state !== 'playing' && this.state !== 'cinematic') {
+                e.preventDefault();
+                this.navigateMenu(e.code.replace('Arrow', '').toLowerCase());
+            }
+            return;
+        }
+
+        // --- Enter / Space: activate focused menu button or game actions ---
         if (e.code === 'Enter' || e.code === 'Space') {
-            if (modalVisible) return;
             e.preventDefault();
+
+            // If we're in a menu with buttons, activate the focused one
+            if (this.state !== 'playing' && this.state !== 'cinematic' && this.menuButtons.length > 0) {
+                this.activateFocusedButton();
+                return;
+            }
+
+            // Game actions (fallback for states without menu buttons)
             switch (this.state) {
                 case 'menu':
                     this.startGame();
@@ -249,7 +278,6 @@ class SpaceInvaders {
                     this.startGame();
                     break;
                 case 'leaderboard':
-                    // Go back to game over screen
                     this.showGameOver();
                     break;
             }
@@ -1975,6 +2003,7 @@ class SpaceInvaders {
             if (this.state === 'levelComplete') {
                 this.showScreen('level-screen');
                 document.getElementById('game-container').classList.remove('playing');
+                this.setMenuButtons(['next-level-btn']);
             }
         }, 500);
     }
@@ -2173,12 +2202,14 @@ class SpaceInvaders {
         this.showScreen('leaderboard-screen');
         this.state = 'leaderboard';
         document.getElementById('game-container').classList.remove('playing');
+        this.setMenuButtons(['new-game-btn', 'back-btn']);
     }
 
     showGameOver() {
         this.showScreen('gameover-screen');
         this.state = 'gameOver';
         document.getElementById('game-container').classList.remove('playing');
+        this.setMenuButtons(['retry-btn', 'leaderboard-btn']);
     }
 
     pause() {
@@ -2188,6 +2219,7 @@ class SpaceInvaders {
 
         // Soften music when paused
         audio.pauseMusic();
+        this.setMenuButtons(['resume-btn', 'quit-btn']);
     }
 
     resume() {
@@ -2206,6 +2238,59 @@ class SpaceInvaders {
 
         // Stop music when returning to menu
         audio.stopMusic();
+        this.setMenuButtons(['start-btn']);
+    }
+
+    // ===== KEYBOARD MENU NAVIGATION =====
+
+    /**
+     * Define which buttons are available for navigation in the current screen.
+     * @param {string[]} buttonIds - Array of button element IDs.
+     */
+    setMenuButtons(buttonIds) {
+        this.menuButtons = buttonIds.map(id => document.getElementById(id)).filter(Boolean);
+        this.menuFocusIndex = 0;
+        this.focusMenuButton(0);
+    }
+
+    /**
+     * Focus a specific button in the current menu.
+     */
+    focusMenuButton(index) {
+        if (this.menuButtons.length === 0) return;
+        // Wrap around
+        this.menuFocusIndex = ((index % this.menuButtons.length) + this.menuButtons.length) % this.menuButtons.length;
+        const btn = this.menuButtons[this.menuFocusIndex];
+        if (btn) btn.focus();
+    }
+
+    /**
+     * Activate the currently focused button.
+     */
+    activateFocusedButton() {
+        const btn = this.menuButtons[this.menuFocusIndex];
+        if (btn) btn.click();
+    }
+
+    /**
+     * Navigate the menu with arrow keys.
+     * @param {string} direction - 'up', 'down', 'left', 'right'.
+     */
+    navigateMenu(direction) {
+        if (this.menuButtons.length === 0) return;
+
+        // Vertical navigation (up/down)
+        if (direction === 'up') {
+            this.focusMenuButton(this.menuFocusIndex - 1);
+        } else if (direction === 'down') {
+            this.focusMenuButton(this.menuFocusIndex + 1);
+        }
+        // Horizontal navigation (left/right) — switch to adjacent button
+        else if (direction === 'left') {
+            this.focusMenuButton(this.menuFocusIndex - 1);
+        } else if (direction === 'right') {
+            this.focusMenuButton(this.menuFocusIndex + 1);
+        }
     }
 
     // ===== RENDERING =====
