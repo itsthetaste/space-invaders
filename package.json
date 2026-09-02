@@ -5,7 +5,8 @@
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 8081",
-    "dev": "npx live-server --port=8081"
+    "dev": "npx live-server --port=8081",
+    "test": "node --test test/audio.test.js test/leaderboard.test.js test/powerups.test.js test/game.test.js"
   },
   "keywords": ["game", "space-invaders", "retro", "browser-game"],
   "license": "MIT"
