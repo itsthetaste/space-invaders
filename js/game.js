@@ -41,6 +41,11 @@ class SpaceInvaders {
         // Timing
         this.lastTime = 0;
         this.levelStartTime = 0;
+
+        // Frame normalization: keeps the simulation at the same speed on
+        // 60/120/144 Hz displays (see update()).
+        this.frameScale = 1;
+        this.enemyScale = 1;
         
         // Level timer (5 minutes = 300 seconds per level)
         this.TIMER_SECONDS = 300;
@@ -64,6 +69,7 @@ class SpaceInvaders {
         this.bossIntroActive = false;
         this.bossIntroTimer = 0;
         this.bossIntroPhase = 0; // 0: not started, 1: approaching, 2: ready, 3: defeated
+        this.bossDeathToken = 0; // Generation token guarding destroyBoss() timeouts
         
         // Alien movement
         this.alienDirection = 1;
@@ -330,6 +336,7 @@ class SpaceInvaders {
     startGame() {
         audio.init();
         this.state = 'playing';
+        this.bossDeathToken++; // New run — pending boss-death timeouts are void
         this.score = 0;
         this.level = 1;
         this.lives = 3;
@@ -406,7 +413,10 @@ class SpaceInvaders {
             this.bossIntroPhase = 0;
             this.levelCompleteDelay = null;
             this.powerUpPoints = 0;
-            this.gameplayScore = 0;
+            this.bossDeathToken++; // New level — pending boss-death timeouts are void
+            // NOTE: gameplayScore is intentionally NOT reset here — weapon
+            // unlock thresholds are run-wide, and unlocked weapons persist
+            // across levels (see startGame()).
             
             this.createPlayer();
             
@@ -539,24 +549,24 @@ class SpaceInvaders {
         audio.playBossIntro();
     }
 
-    updateBoss(deltaTime) {
+    updateBoss() {
         if (!this.boss) return;
         
         const boss = this.boss;
         
         // Boss intro animation
         if (boss.phase === 'approach') {
-            boss.introScale = Math.min(1, boss.introScale + 0.02);
-            boss.introAlpha = Math.min(1, boss.introAlpha + 0.03);
+            boss.introScale = Math.min(1, boss.introScale + 0.02 * this.frameScale);
+            boss.introAlpha = Math.min(1, boss.introAlpha + 0.03 * this.frameScale);
             
             // Move from off-screen to position
             if (boss.y < boss.targetY) {
-                boss.y += 2;
+                boss.y += 2 * this.frameScale;
             }
             
             // Dramatic entrance effects
-            boss.eyePhase += 0.1;
-            boss.bodyWobble += 0.05;
+            boss.eyePhase += 0.1 * this.frameScale;
+            boss.bodyWobble += 0.05 * this.frameScale;
             
             // Screen shake on arrival
             if (boss.y >= boss.targetY && boss.introScale >= 1) {
@@ -575,9 +585,9 @@ class SpaceInvaders {
         }
         
         if (boss.phase === 'dying') {
-            boss.y += 1;
-            boss.introScale = Math.max(0, boss.introScale - 0.02);
-            boss.introAlpha = Math.max(0, boss.introAlpha - 0.02);
+            boss.y += 1 * this.frameScale;
+            boss.introScale = Math.max(0, boss.introScale - 0.02 * this.frameScale);
+            boss.introAlpha = Math.max(0, boss.introAlpha - 0.02 * this.frameScale);
             
             if (boss.introAlpha <= 0) {
                 boss.phase = 'defeated';
@@ -588,11 +598,11 @@ class SpaceInvaders {
         }
         
         // Boss fight phase
-        boss.eyePhase += 0.15;
-        boss.bodyWobble += 0.08;
+        boss.eyePhase += 0.15 * this.enemyScale;
+        boss.bodyWobble += 0.08 * this.enemyScale;
         
         // Horizontal movement - sinusoidal pattern
-        boss.x += boss.speed * boss.direction;
+        boss.x += boss.speed * boss.direction * this.enemyScale;
         
         // Bounce off walls
         if (boss.x > this.CANVAS_WIDTH - 80) {
@@ -605,14 +615,14 @@ class SpaceInvaders {
         boss.y = boss.targetY + Math.sin(boss.bodyWobble) * 10;
         
         // Pattern switching
-        boss.patternTimer++;
+        boss.patternTimer += this.enemyScale;
         if (boss.patternTimer >= boss.patternDuration) {
             boss.patternTimer = 0;
             boss.pattern = (boss.pattern + 1) % 3;
         }
         
         // Boss shooting
-        boss.shootTimer++;
+        boss.shootTimer += this.enemyScale;
         if (boss.shootTimer >= boss.shootInterval) {
             boss.shootTimer = 0;
             this.bossShoot(boss);
@@ -753,11 +763,20 @@ class SpaceInvaders {
         audio.playBossDeath();
         this.screenShake = 25;
         this.flashAlpha = 0.6;
+
+        // The callbacks below span ~2 seconds. If the player dies, quits, or
+        // a new level begins in that window, they must not mutate the new
+        // state (e.g. awarding a stale boss bonus into a fresh game). The
+        // generation token is invalidated by startGame/startLevel/
+        // completeLevel/gameOver/quitToMenu.
+        const token = this.bossDeathToken;
+        const inLevel = () => token === this.bossDeathToken &&
+            (this.state === 'playing' || this.state === 'paused');
         
-        // Massive explosion
+        // Massive explosion (visual only)
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
-                if (this.boss) {
+                if (token === this.bossDeathToken && this.boss) {
                     this.createExplosion(
                         this.boss.x + (Math.random() - 0.5) * this.boss.width,
                         this.boss.y + (Math.random() - 0.5) * this.boss.height,
@@ -770,12 +789,13 @@ class SpaceInvaders {
         
         // Drop multiple power-ups
         setTimeout(() => {
-            if (this.powerUps) {
+            if (inLevel() && this.powerUps) {
                 const powerUpTypes = Object.values(PowerUpTypes);
                 // Drop 3-5 power-ups
                 const count = 3 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < count; i++) {
                     setTimeout(() => {
+                        if (token !== this.bossDeathToken || !this.powerUps) return;
                         const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
                         const pu = new PowerUp(this.canvas, type);
                         pu.x = this.boss.x + (Math.random() - 0.5) * 100;
@@ -788,15 +808,18 @@ class SpaceInvaders {
         
         // Award bonus score
         setTimeout(() => {
+            if (!inLevel()) return;
             const bonus = 1000 + (this.level * 200);
             this.score += bonus;
             this.showFloatingText(this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2, `BOSS DEFEATED! +${bonus}`);
             this.updateHUD();
         }, 800);
         
-        // Complete level after animation
+        // Complete level after animation (also allowed while paused, so a
+        // pause during the death animation can't strand the run on a
+        // defeated boss)
         setTimeout(() => {
-            if (this.state === 'playing') {
+            if (inLevel()) {
                 this.completeLevel();
             }
         }, 2000);
@@ -827,7 +850,7 @@ class SpaceInvaders {
         
         // Hit flash
         if (boss.hitFlash > 0) {
-            boss.hitFlash--;
+            boss.hitFlash -= this.frameScale;
             ctx.shadowColor = '#ffffff';
             ctx.shadowBlur = 30;
         } else {
@@ -986,14 +1009,19 @@ class SpaceInvaders {
     }
 
     update(deltaTime) {
+        // Normalize the simulation to a 60fps baseline so the game runs at the
+        // same speed on any refresh rate. Large gaps (e.g. tab switches) are
+        // clamped so entities don't teleport.
+        this.frameScale = Math.min(deltaTime, 50) / (1000 / 60);
         const timeScale = this.slowTimer > 0 ? 0.4 : 1;
+        this.enemyScale = this.frameScale * timeScale;
         
         this.updatePlayer();
         this.updateAliens();
         this.updateBullets();
         this.updateEnemyBullets();
         this.updateParticles();
-        this.updatePowerUps();
+        this.updatePowerUps(deltaTime);
         this.updateUFO();
         this.updateStars();
         this.updateShields();
@@ -1004,7 +1032,7 @@ class SpaceInvaders {
         
         // Update boss if active
         if (this.boss && this.boss.phase !== 'defeated') {
-            this.updateBoss(deltaTime);
+            this.updateBoss();
         }
         
         // Check all collisions
@@ -1037,21 +1065,21 @@ class SpaceInvaders {
         
         // Movement
         if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
-            this.player.x -= this.player.speed;
+            this.player.x -= this.player.speed * this.frameScale;
         }
         if (this.keys['ArrowRight'] || this.keys['KeyD']) {
-            this.player.x += this.player.speed;
+            this.player.x += this.player.speed * this.frameScale;
         }
         
         // Clamp position
         this.player.x = Math.max(this.player.width / 2, Math.min(this.CANVAS_WIDTH - this.player.width / 2, this.player.x));
         
         // Cooldown
-        if (this.player.cooldown > 0) this.player.cooldown--;
+        if (this.player.cooldown > 0) this.player.cooldown -= this.frameScale;
         
         // Invincibility
         if (this.player.invincible > 0) {
-            this.player.invincible--;
+            this.player.invincible -= this.frameScale;
             this.player.visible = Math.floor(this.player.invincible / 4) % 2 === 0;
         } else {
             this.player.visible = true;
@@ -1065,7 +1093,7 @@ class SpaceInvaders {
         // Calculate speed based on remaining aliens
         const aliveRatio = aliveAliens.length / this.aliens.length;
         const speedMultiplier = 1 + (1 - aliveRatio) * 3;
-        this.alienMoveTimer += speedMultiplier;
+        this.alienMoveTimer += speedMultiplier * this.enemyScale;
         
         if (this.alienMoveTimer >= this.alienMoveInterval) {
             this.alienMoveTimer = 0;
@@ -1074,7 +1102,7 @@ class SpaceInvaders {
         }
         
         // Enemy shooting
-        this.alienShootTimer++;
+        this.alienShootTimer += this.enemyScale;
         const shootInterval = Math.max(20, 60 - this.level * 3);
         
         if (this.alienShootTimer >= shootInterval) {
@@ -1138,7 +1166,7 @@ class SpaceInvaders {
 
     updateBullets() {
         this.bullets = this.bullets.filter(bullet => {
-            bullet.y -= bullet.speed;
+            bullet.y -= bullet.speed * this.frameScale;
             return bullet.y > -20;
         });
     }
@@ -1150,12 +1178,12 @@ class SpaceInvaders {
                 if (bullet.homing && this.player) {
                     // Slight homing toward player
                     const dx = this.player.x - bullet.x;
-                    bullet.vx += (dx / Math.abs(dx || 1)) * bullet.homingStrength;
+                    bullet.vx += (dx / Math.abs(dx || 1)) * bullet.homingStrength * this.enemyScale;
                 }
-                bullet.x += bullet.vx || 0;
-                bullet.y += bullet.vy || bullet.speed;
+                bullet.x += (bullet.vx || 0) * this.enemyScale;
+                bullet.y += (bullet.vy || bullet.speed) * this.enemyScale;
             } else {
-                bullet.y += bullet.speed;
+                bullet.y += bullet.speed * this.enemyScale;
             }
             return bullet.y < this.CANVAS_HEIGHT + 20 && bullet.y > -20 && 
                    bullet.x > -20 && bullet.x < this.CANVAS_WIDTH + 20;
@@ -1164,15 +1192,15 @@ class SpaceInvaders {
 
     updateParticles() {
         this.particles = this.particles.filter(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life--;
-            p.vy += 0.05; // Gravity
+            p.x += p.vx * this.frameScale;
+            p.y += p.vy * this.frameScale;
+            p.life -= this.frameScale;
+            p.vy += 0.05 * this.frameScale; // Gravity
             return p.life > 0;
         });
     }
 
-    updatePowerUps() {
+    updatePowerUps(deltaTime) {
         if (!this.powerUps) return;
 
         // Player can be null briefly after death (during the death->gameOver gap)
@@ -1184,15 +1212,15 @@ class SpaceInvaders {
             });
         }
 
-        this.powerUps.update(this);
+        this.powerUps.update(this, this.frameScale);
 
         if (this.player) {
-            this.powerUps.clearExpired(this.player, this);
+            this.powerUps.clearExpired(this.player, this, deltaTime);
         }
     }
 
     updateUFO() {
-        this.ufoTimer--;
+        this.ufoTimer -= this.enemyScale;
         
         if (!this.ufo && this.ufoTimer <= 0) {
             // Spawn UFO
@@ -1209,7 +1237,7 @@ class SpaceInvaders {
         }
         
         if (this.ufo) {
-            this.ufo.x += this.ufo.speed;
+            this.ufo.x += this.ufo.speed * this.enemyScale;
             
             // Play sound occasionally
             if (Math.random() < 0.01) audio.playUFO();
@@ -1223,13 +1251,14 @@ class SpaceInvaders {
 
     updateStars() {
         const slowFactor = this.slowTimer > 0 ? 0.3 : 1;
+        const scale = this.frameScale * slowFactor;
 
         // Update parallax star layers
         for (const layerName of ['far', 'mid', 'near']) {
             const layer = this.starLayers[layerName];
             layer.forEach(star => {
-                star.y += star.speed * slowFactor;
-                star.twinklePhase += star.twinkleSpeed;
+                star.y += star.speed * scale;
+                star.twinklePhase += star.twinkleSpeed * scale;
 
                 // Twinkle effect
                 const twinkle = Math.sin(star.twinklePhase);
@@ -1249,7 +1278,7 @@ class SpaceInvaders {
 
     updateShootingStars() {
         // Randomly spawn a shooting star
-        if (Math.random() < 0.0005) {
+        if (Math.random() < 0.0005 * this.frameScale) {
             this.shootingStars.push({
                 x: Math.random() * this.CANVAS_WIDTH,
                 y: Math.random() * this.CANVAS_HEIGHT * 0.5,
@@ -1264,9 +1293,9 @@ class SpaceInvaders {
 
         // Update existing shooting stars
         this.shootingStars = this.shootingStars.filter(s => {
-            s.x += s.vx;
-            s.y += s.vy;
-            s.life++;
+            s.x += s.vx * this.frameScale;
+            s.y += s.vy * this.frameScale;
+            s.life += this.frameScale;
             s.brightness = 1 - (s.life / s.maxLife);
             return s.life < s.maxLife;
         });
@@ -1350,8 +1379,8 @@ class SpaceInvaders {
 
         // Update combo floating texts
         this.comboFloatingTexts = this.comboFloatingTexts.filter(ft => {
-            ft.life--;
-            ft.y -= 0.5;
+            ft.life -= this.frameScale;
+            ft.y -= 0.5 * this.frameScale;
             ft.alpha = ft.life / ft.maxLife;
             return ft.life > 0;
         });
@@ -1416,9 +1445,15 @@ class SpaceInvaders {
     }
 
     updateScreenEffects() {
-        if (this.screenShake > 0) this.screenShake *= 0.9;
-        if (this.screenShake < 0.5) this.screenShake = 0;
-        if (this.flashAlpha > 0) this.flashAlpha *= 0.95;
+        // Exponential decay made refresh-rate independent
+        if (this.screenShake > 0) {
+            this.screenShake *= Math.pow(0.9, this.frameScale);
+            if (this.screenShake < 0.5) this.screenShake = 0;
+        }
+        if (this.flashAlpha > 0) {
+            this.flashAlpha *= Math.pow(0.95, this.frameScale);
+            if (this.flashAlpha < 0.01) this.flashAlpha = 0;
+        }
     }
 
     // ===== WEAPON SYSTEM =====
@@ -1496,8 +1531,8 @@ class SpaceInvaders {
 
     updateWeaponNotifications() {
         this.weaponUnlockNotifications = this.weaponUnlockNotifications.filter(ntf => {
-            ntf.life--;
-            ntf.y -= 0.3;
+            ntf.life -= this.frameScale;
+            ntf.y -= 0.3 * this.frameScale;
             ntf.alpha = (ntf.life / ntf.maxLife);
             return ntf.life > 0;
         });
@@ -1969,6 +2004,10 @@ class SpaceInvaders {
     // ===== LEVEL MANAGEMENT =====
 
     completeLevel() {
+        // The level is over — any still-pending boss-death callbacks (e.g. a
+        // duplicate completion) must no longer fire.
+        this.bossDeathToken++;
+
         // Auto-apply any power-ups still on screen
         if (this.powerUps && this.powerUps.activePowerUps.length > 0) {
             this.powerUps.activePowerUps.forEach(pu => {
@@ -2029,8 +2068,7 @@ class SpaceInvaders {
 
         if (this.level > this.MAX_LEVELS) {
             // Victory!
-            this.state = 'gameOver';
-            this.showGameOver();
+            this.winGame();
             return;
         }
 
@@ -2047,17 +2085,51 @@ class SpaceInvaders {
         if (this.state === 'gameOver') return;
 
         this.state = 'gameOver';
+        document.getElementById('game-container').classList.remove('playing');
+        this.bossDeathToken++; // Death voids any pending boss-death timeouts
+
+        this.finalizeGame();
+        audio.playGameOver();
+
+        // Reset the end-screen title (winGame() may have set it to victory).
+        const title = document.querySelector('.game-over-title');
+        if (title) {
+            title.textContent = 'GAME OVER';
+            title.classList.remove('victory');
+        }
+
+        // Play game over cinematic first
+        this.playCinematic('gameOver', 4000, () => {
+            // After cinematic, show the game over screen
+            this.showEndScreen();
+        });
+    }
+
+    /**
+     * Shared end-of-run finalization: locks the final score/level, saves the
+     * high score, stops the music, fills the end-screen stats, and resets the
+     * banner/modal state from any previous run. isNewHigh is computed BEFORE
+     * saveHighScore() — otherwise this.highScore is already updated and the
+     * comparison can never be true.
+     */
+    finalizeGame() {
+        this.isNewHigh = this.score > this.highScore ||
+            (this.highScore === 0 && this.score > 0);
+
         // Lock in the final score and level so submitScore() always has the
         // correct values even if the game object is reused later.
         this.finalScore = this.score;
         this.finalLevel = this.level;
         this.saveHighScore();
-        document.getElementById('game-container').classList.remove('playing');
 
-        audio.playGameOver();
         audio.stopMusic();
 
-        // Set up game over UI data
+        // Reset end-screen state from any previous run
+        document.getElementById('new-high-score').classList.add('hidden');
+        document.getElementById('score-modal').classList.add('hidden');
+        document.getElementById('player-name').value = '';
+
+        // Set up end-screen UI data
         document.getElementById('final-score').textContent = this.score.toLocaleString();
         document.getElementById('final-level').textContent = this.level;
         document.getElementById('final-kills').textContent = this.alienKills;
@@ -2065,24 +2137,45 @@ class SpaceInvaders {
 
         const accuracy = this.totalShots > 0 ? Math.round((this.hits / this.totalShots) * 100) : 0;
         document.getElementById('final-accuracy').textContent = accuracy + '%';
+    }
 
-        // Check for new high score
-        const isNewHigh = this.score > this.highScore ||
-            (this.highScore === 0 && this.score > 0);
+    /**
+     * Show the end screen, with the leaderboard banner and name-entry modal
+     * when the score qualifies.
+     */
+    showEndScreen() {
+        if (this.isNewHigh || leaderboard.qualifies(this.score)) {
+            document.getElementById('new-high-score').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('score-modal').classList.remove('hidden');
+                document.getElementById('player-name').focus();
+            }, 500);
+        }
 
-        // Play game over cinematic first
-        this.playCinematic('gameOver', 4000, () => {
-            // After cinematic, show the game over screen
-            if (isNewHigh || leaderboard.qualifies(this.score)) {
-                document.getElementById('new-high-score').classList.remove('hidden');
-                setTimeout(() => {
-                    document.getElementById('score-modal').classList.remove('hidden');
-                    document.getElementById('player-name').focus();
-                }, 500);
-            }
+        this.showScreen('gameover-screen');
+        this.setMenuButtons(['retry-btn', 'leaderboard-btn']);
+    }
 
-            this.showScreen('gameover-screen');
-        });
+    /**
+     * Player cleared the final level — end the run as a win.
+     */
+    winGame() {
+        // nextLevel() already incremented the level past MAX_LEVELS; clamp it
+        // so the end screen and the leaderboard show the last level played.
+        this.level = this.MAX_LEVELS;
+        this.state = 'gameOver';
+        document.getElementById('game-container').classList.remove('playing');
+
+        this.finalizeGame();
+        audio.playLevelComplete(); // celebratory fanfare, not the game-over sting
+
+        const title = document.querySelector('.game-over-title');
+        if (title) {
+            title.textContent = 'EARTH SAVED!';
+            title.classList.add('victory');
+        }
+
+        this.showEndScreen();
     }
 
     submitScore() {
@@ -2235,6 +2328,7 @@ class SpaceInvaders {
         this.state = 'menu';
         this.showScreen('start-screen');
         document.getElementById('game-container').classList.remove('playing');
+        this.bossDeathToken++; // Quitting voids any pending boss-death timeouts
 
         // Stop music when returning to menu
         audio.stopMusic();
@@ -2910,7 +3004,7 @@ class SpaceInvaders {
                 this.updateLevelIntro();
                 break;
             case 'death':
-                this.updateDeath();
+                this.updateDeath(deltaTime);
                 break;
             case 'gameOver':
                 this.updateGameOverCinematic();
@@ -3110,14 +3204,15 @@ class SpaceInvaders {
         });
     }
 
-    updateDeath() {
+    updateDeath(deltaTime) {
         // Slow-mo particles continue during death cinematic
         const timeScale = 0.2;
+        const frameScale = Math.min(deltaTime, 50) / (1000 / 60);
         this.particles = this.particles.filter(p => {
-            p.x += p.vx * timeScale;
-            p.y += p.vy * timeScale;
-            p.life--;
-            p.vy += 0.05 * timeScale;
+            p.x += p.vx * timeScale * frameScale;
+            p.y += p.vy * timeScale * frameScale;
+            p.life -= frameScale;
+            p.vy += 0.05 * timeScale * frameScale;
             return p.life > 0;
         });
     }

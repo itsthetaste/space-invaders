@@ -24,9 +24,9 @@ class PowerUp {
         this.pulsePhase = 0;
     }
 
-    update() {
-        this.y += this.speed;
-        this.pulsePhase += 0.1;
+    update(frameScale = 1) {
+        this.y += this.speed * frameScale;
+        this.pulsePhase += 0.1 * frameScale;
         
         if (this.y > this.canvas.height + 30) {
             return false; // Remove
@@ -79,9 +79,9 @@ class PowerUpManager {
         this.spawnChance = 0.002; // Chance per frame
     }
 
-    update(game) {
+    update(game, frameScale = 1) {
         // Try to spawn
-        this.spawnTimer++;
+        this.spawnTimer += frameScale;
         if (this.spawnTimer >= this.spawnInterval) {
             this.spawnTimer = 0;
             this.spawnInterval = 400 + Math.random() * 400;
@@ -93,7 +93,7 @@ class PowerUpManager {
 
         // Update active power-ups
         this.activePowerUps = this.activePowerUps.filter(powerUp => {
-            return powerUp.update();
+            return powerUp.update(frameScale);
         });
     }
 
@@ -161,23 +161,25 @@ class PowerUpManager {
         }
     }
 
-    clearExpired(player, game) {
+    clearExpired(player, game, deltaTime = 16) {
+        // Durations are stored in milliseconds — decrement by real elapsed
+        // time so effect length is refresh-rate independent.
         if (player.powerUps.doubleFire > 0) {
-            player.powerUps.doubleFire -= 16;
+            player.powerUps.doubleFire -= deltaTime;
             if (player.powerUps.doubleFire <= 0) {
                 player.powerUps.doubleFire = 0;
             }
         }
         
         if (player.powerUps.tripleShot > 0) {
-            player.powerUps.tripleShot -= 16;
+            player.powerUps.tripleShot -= deltaTime;
             if (player.powerUps.tripleShot <= 0) {
                 player.powerUps.tripleShot = 0;
             }
         }
         
         if (player.shieldActive) {
-            player.shieldTimer -= 16;
+            player.shieldTimer -= deltaTime;
             if (player.shieldTimer <= 0) {
                 player.shieldActive = false;
                 player.shieldTimer = 0;
@@ -185,20 +187,11 @@ class PowerUpManager {
         }
         
         if (game.slowTimer > 0) {
-            game.slowTimer -= 16;
+            game.slowTimer -= deltaTime;
             if (game.slowTimer <= 0) {
                 game.slowTimer = 0;
             }
         }
-    }
-
-    getActiveEffects(player) {
-        const effects = [];
-        if (player.powerUps.doubleFire > 0) effects.push(PowerUpTypes.DOUBLE_FIRE);
-        if (player.powerUps.tripleShot > 0) effects.push(PowerUpTypes.TRIPLE_SHOT);
-        if (player.shieldActive) effects.push(PowerUpTypes.SHIELD);
-        if (game.slowTimer > 0) effects.push(PowerUpTypes.SLOW_TIME);
-        return effects;
     }
 }
 
