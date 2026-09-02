@@ -121,6 +121,7 @@ class SpaceInvaders {
         this.generateStars();
         this.loadHighScore();
         this.setupEventListeners();
+        this.setupTouchControls();
         this.updateHUD();
         
         // Start render loop
@@ -231,6 +232,69 @@ class SpaceInvaders {
         // Allow Enter key for modal
         document.getElementById('player-name').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.submitScore();
+        });
+    }
+
+    /**
+     * Set up on-screen touch controls for mobile devices. The buttons are
+     * shown only when the device reports touch capability. Movement buttons
+     * emulate the ArrowLeft/ArrowRight key state, so the existing keyboard
+     * movement code is reused as-is (hold to move, release to stop).
+     */
+    setupTouchControls() {
+        const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+        if (!isTouch) return;
+
+        document.getElementById('touch-controls').classList.remove('hidden');
+        document.getElementById('pause-btn').classList.remove('hidden');
+
+        // Movement: hold to move
+        const holdButton = (id, keyCode) => {
+            const el = document.getElementById(id);
+            const down = (e) => {
+                e.preventDefault();
+                this.keys[keyCode] = true;
+                el.classList.add('pressed');
+            };
+            const up = (e) => {
+                e.preventDefault();
+                this.keys[keyCode] = false;
+                el.classList.remove('pressed');
+            };
+            el.addEventListener('touchstart', down, { passive: false });
+            el.addEventListener('touchend', up);
+            el.addEventListener('touchcancel', up);
+            // Mouse fallback for touch-capable desktops
+            el.addEventListener('mousedown', down);
+            el.addEventListener('mouseup', up);
+            el.addEventListener('mouseleave', up);
+        };
+        holdButton('tc-left-btn', 'ArrowLeft');
+        holdButton('tc-right-btn', 'ArrowRight');
+
+        // Tap buttons (touchstart fires immediately — no 300ms delay; the
+        // synthesized click from touch is suppressed by preventDefault above,
+        // so the click handler only serves mouse users and can't double-fire)
+        const tapButton = (id, fn) => {
+            const el = document.getElementById(id);
+            el.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                fn();
+            }, { passive: false });
+            el.addEventListener('click', fn);
+        };
+
+        tapButton('tc-fire-btn', () => {
+            if (this.state === 'playing') this.shoot();
+        });
+
+        tapButton('tc-weapon-btn', () => {
+            if (this.state === 'playing' || this.state === 'paused') this.cycleWeapon(1);
+        });
+
+        tapButton('pause-btn', () => {
+            if (this.state === 'playing') this.pause();
+            else if (this.state === 'paused') this.resume();
         });
     }
 
@@ -2278,6 +2342,10 @@ class SpaceInvaders {
             const prevWeapon = this.getNextUnlockedWeapon(-1);
             weaponName.textContent = `${weapon.name.toUpperCase()} [W/Q]`;
         }
+
+        // Mirror the current weapon on the touch weapon button
+        const tcWeaponBtn = document.getElementById('tc-weapon-btn');
+        if (tcWeaponBtn) tcWeaponBtn.textContent = icons[this.currentWeapon] || '🔧';
     }
 
     getNextUnlockedWeapon(direction) {
