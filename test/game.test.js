@@ -177,3 +177,33 @@ test('winGame clamps the level, celebrates, and routes to the end screen', () =>
     assert.ok(!element('score-modal').classList.contains('hidden'));
     assert.ok(!element('new-high-score').classList.contains('hidden'));
 });
+
+test('boss levels start with fresh defense walls, not the previous level remains', () => {
+    const { game, timers } = loadGame();
+
+    // Enter level 9 (a normal alien level). The intro cinematic ends via the
+    // wall-clock backstop and the level is set up with fresh walls.
+    game.level = 9;
+    game.startLevel();
+    timers.advance(4000);
+    assert.equal(game.shields.length, 4, 'level 9 set up four walls');
+
+    // Simulate level 9 wear: enemy fire (and descending aliens) chew the
+    // walls down before the level ends.
+    for (const shield of game.shields) {
+        shield.pixels.length = Math.floor(shield.pixels.length / 2);
+        shield.pixels.forEach((p) => { p.health = 1; });
+    }
+
+    // Enter level 10 — the second boss.
+    game.level = 10;
+    game.startLevel();
+    timers.advance(4000);
+
+    assert.ok(game.boss, 'level 10 is a boss level');
+    assert.equal(game.shields.length, 4, 'boss levels get defense walls too');
+    for (const shield of game.shields) {
+        assert.ok(shield.pixels.length > 0, 'no empty walls');
+        assert.ok(shield.pixels.every((p) => p.health === 4), 'walls are at full health');
+    }
+});

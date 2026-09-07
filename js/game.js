@@ -484,11 +484,16 @@ class SpaceInvaders {
             
             this.createPlayer();
             
+            // Fresh defense walls for every level, boss levels included.
+            // Previously only the alien branch rebuilt the walls, so a boss
+            // fight started with whatever battered remains of the previous
+            // level's walls were left behind (partially eaten, or gone).
+            this.createShields();
+            
             if (this.level % 5 === 0) {
                 this.createBoss();
             } else {
                 this.createAliens();
-                this.createShields();
                 this.alienDirection = 1;
                 // Toned-down scaling so the game stays playable at higher levels.
                 // Original: speed grew by 0.3/level and interval dropped by 3/level
